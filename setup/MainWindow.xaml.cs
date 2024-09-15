@@ -592,7 +592,7 @@ namespace ReShade.Setup
 				isApiDXGI = peInfo.Modules.Any(s => s.StartsWith("dxgi", StringComparison.OrdinalIgnoreCase) || s.StartsWith("d3d1", StringComparison.OrdinalIgnoreCase) || s.Contains("GFSDK")); // Assume DXGI when GameWorks SDK is in use
 				isApiOpenGL = peInfo.Modules.Any(s => s.StartsWith("opengl32", StringComparison.OrdinalIgnoreCase));
 				isApiVulkan = peInfo.Modules.Any(s => s.StartsWith("vulkan-1", StringComparison.OrdinalIgnoreCase));
-				currentInfo.targetOpenXR = peInfo.Modules.Any(s => s.StartsWith("openxr_loader", StringComparison.OrdinalIgnoreCase));
+				// currentInfo.targetOpenXR = peInfo.Modules.Any(s => s.StartsWith("openxr_loader", StringComparison.OrdinalIgnoreCase));
 
 				if (isApiD3D9 && isApiDXGI)
 				{
@@ -1016,8 +1016,9 @@ namespace ReShade.Setup
 				var appConfig = new IniFile(Path.Combine(commonPath, "ReShadeApps.ini"));
 				if (appConfig.GetValue(string.Empty, "Apps", out string[] appKeys) == false || !appKeys.Contains(currentInfo.targetPath))
 				{
-					List<string> appKeysList = appKeys != null ? appKeys.ToList() : new List<string>();
+					List<string> appKeysList = appKeys?.ToList() ?? new List<string>();
 					appKeysList.Add(currentInfo.targetPath);
+
 					appConfig.SetValue(string.Empty, "Apps", appKeysList.ToArray());
 					appConfig.SaveFile();
 				}
@@ -1084,15 +1085,17 @@ In that event here are some steps you can try to resolve this:
 			var config = new IniFile(currentInfo.configPath);
 			if (compatibilityIni != null && !config.HasValue("GENERAL", "PreprocessorDefinitions"))
 			{
-				string depthReversed = compatibilityIni.GetString(currentInfo.targetName, "DepthReversed", "0");
-				string depthUpsideDown = compatibilityIni.GetString(currentInfo.targetName, "DepthUpsideDown", "0");
-				string depthLogarithmic = compatibilityIni.GetString(currentInfo.targetName, "DepthLogarithmic", "0");
-				if (!compatibilityIni.HasValue(currentInfo.targetName, "DepthReversed"))
+				string executableName = Path.GetFileName(currentInfo.targetPath);
+
+				string depthReversed = compatibilityIni.GetString(executableName, "DepthReversed", "0");
+				string depthUpsideDown = compatibilityIni.GetString(executableName, "DepthUpsideDown", "0");
+				string depthLogarithmic = compatibilityIni.GetString(executableName, "DepthLogarithmic", "0");
+				if (!compatibilityIni.HasValue(executableName, "DepthReversed"))
 				{
 					var info = FileVersionInfo.GetVersionInfo(currentInfo.targetPath);
 					if (info.LegalCopyright != null)
 					{
-						Match match = new Regex("(20[0-9]{2})", RegexOptions.RightToLeft).Match(info.LegalCopyright);
+						Match match = new Regex(@"(20[0-9]{2})", RegexOptions.RightToLeft).Match(info.LegalCopyright);
 						if (match.Success && int.TryParse(match.Groups[1].Value, out int year))
 						{
 							// Modern games usually use reversed depth
@@ -1107,16 +1110,16 @@ In that event here are some steps you can try to resolve this:
 					"RESHADE_DEPTH_INPUT_IS_REVERSED=" + depthReversed,
 					"RESHADE_DEPTH_INPUT_IS_LOGARITHMIC=" + depthLogarithmic);
 
-				if (compatibilityIni.HasValue(currentInfo.targetName, "DepthCopyBeforeClears") ||
-					compatibilityIni.HasValue(currentInfo.targetName, "DepthCopyAtClearIndex") ||
-					compatibilityIni.HasValue(currentInfo.targetName, "UseAspectRatioHeuristics"))
+				if (compatibilityIni.HasValue(executableName, "DepthCopyBeforeClears") ||
+					compatibilityIni.HasValue(executableName, "DepthCopyAtClearIndex") ||
+					compatibilityIni.HasValue(executableName, "UseAspectRatioHeuristics"))
 				{
 					config.SetValue("DEPTH", "DepthCopyBeforeClears",
-						compatibilityIni.GetString(currentInfo.targetName, "DepthCopyBeforeClears", "0"));
+						compatibilityIni.GetString(executableName, "DepthCopyBeforeClears", "0"));
 					config.SetValue("DEPTH", "DepthCopyAtClearIndex",
-						compatibilityIni.GetString(currentInfo.targetName, "DepthCopyAtClearIndex", "0"));
+						compatibilityIni.GetString(executableName, "DepthCopyAtClearIndex", "0"));
 					config.SetValue("DEPTH", "UseAspectRatioHeuristics",
-						compatibilityIni.GetString(currentInfo.targetName, "UseAspectRatioHeuristics", "1"));
+						compatibilityIni.GetString(executableName, "UseAspectRatioHeuristics", "1"));
 				}
 			}
 
@@ -1262,15 +1265,6 @@ In that event here are some steps you can try to resolve this:
 			if (!config.HasValue("OVERLAY", "AutoSavePreset") && config.HasValue("OVERLAY", "SavePresetOnModification"))
 			{
 				config.RenameValue("OVERLAY", "SavePresetOnModification", "AutoSavePreset");
-			}
-
-			// Always add app section if this is the global config
-			if (Path.GetDirectoryName(currentInfo.configPath) == Path.GetDirectoryName(currentInfo.targetPath) && !config.HasValue("APP"))
-			{
-				config.SetValue("APP", "ForceVsync", "0");
-				config.SetValue("APP", "ForceWindowed", "0");
-				config.SetValue("APP", "ForceFullscreen", "0");
-				config.SetValue("APP", "ForceDefaultRefreshRate", "0");
 			}
 
 			// Always add input section
@@ -1706,7 +1700,15 @@ In that event here are some steps you can try to resolve this:
 					string addonPath = Directory.EnumerateFiles(tempPath, currentInfo.is64Bit ? "*.addon64" : "*.addon32", SearchOption.AllDirectories).FirstOrDefault();
 					if (addonPath == null)
 					{
-						addonPath = Directory.EnumerateFiles(tempPath, "*.addon").FirstOrDefault(x => x.Contains(currentInfo.is64Bit ? "x64" : "x86") || Path.GetFileNameWithoutExtension(x).EndsWith(currentInfo.is64Bit ? "64" : "32"));
+						IEnumerable<string> addonPaths = Directory.EnumerateFiles(tempPath, "*.addon");
+						if (addonPaths.Count() == 1)
+						{
+							addonPath = addonPaths.First();
+						}
+						else
+						{
+							addonPath = addonPaths.FirstOrDefault(x => x.Contains(currentInfo.is64Bit ? "x64" : "x86") || Path.GetFileNameWithoutExtension(x).EndsWith(currentInfo.is64Bit ? "64" : "32"));
+						}
 					}
 					if (addonPath == null)
 					{
@@ -1880,17 +1882,15 @@ In that event here are some steps you can try to resolve this:
 			Close();
 		}
 
+		void OnSkipButtonClick(object sender, RoutedEventArgs e)
+		{
+			InstallStep_Finish();
+		}
 		void OnCancelButtonClick(object sender, RoutedEventArgs e)
 		{
 			if (CurrentPage.Content is SelectAppPage appPage)
 			{
 				appPage.Cancel();
-			}
-
-			if (CurrentPage.Content is SelectAddonsPage || CurrentPage.Content is SelectEffectsPage)
-			{
-				InstallStep_Finish();
-				return;
 			}
 
 			Close();
@@ -1899,9 +1899,13 @@ In that event here are some steps you can try to resolve this:
 		void OnCurrentPageNavigated(object sender, NavigationEventArgs e)
 		{
 			bool isFinished = currentOperation == InstallOperation.Finished;
+			bool isSkippable = e.Content is SelectAddonsPage || e.Content is SelectEffectsPage;
 
 			NextButton.Visibility = isFinished ? Visibility.Collapsed : Visibility.Visible;
 			FinishButton.Visibility = isFinished ? Visibility.Visible : Visibility.Collapsed;
+
+			SkipButton.Visibility = isSkippable ? Visibility.Visible : Visibility.Collapsed;
+			CancelButton.Visibility = isSkippable ? Visibility.Collapsed : Visibility.Visible;
 
 			BackButton.IsEnabled = isFinished;
 			CancelButton.IsEnabled = !(e.Content is StatusPage);

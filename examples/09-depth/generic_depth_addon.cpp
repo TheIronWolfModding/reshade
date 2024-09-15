@@ -5,12 +5,12 @@
 
 #include <imgui.h>
 #include <reshade.hpp>
-#include <cmath>
-#include <cstring>
-#include <algorithm>
 #include <vector>
 #include <shared_mutex>
 #include <unordered_map>
+#include <cmath> // std::abs, std::modf
+#include <cstring> // std::strcmp
+#include <algorithm> // std::find_if, std::remove, std::sort
 #include <Unknwn.h>
 
 using namespace reshade::api;
@@ -26,7 +26,7 @@ static unsigned int s_use_aspect_ratio_heuristics = 1;
 static unsigned int s_use_format_filtering = 0;
 static unsigned int s_custom_resolution_filtering[2] = {};
 
-enum class clear_op
+enum class clear_op : uint8_t
 {
 	clear_depth_stencil_view,
 	fullscreen_draw,
@@ -52,11 +52,12 @@ struct depth_stencil_frame_stats
 	draw_stats current_stats; // Stats since last clear operation
 	std::vector<clear_stats> clears;
 	bool copied_during_frame = false;
+	bool reversed_clear_value = false;
 };
 
 struct resource_hash
 {
-	inline size_t operator()(resource value) const
+	size_t operator()(resource value) const
 	{
 		// Simply use the handle (which is usually a pointer) as hash value (with some bits shaved off due to pointer alignment)
 		return static_cast<size_t>(value.handle >> 4);
@@ -116,6 +117,7 @@ struct __declspec(uuid("43319e83-387c-448e-881c-7e68fc2e52c4")) state_tracking
 			counters.clears.insert(counters.clears.end(), source_counters.clears.begin(), source_counters.clears.end());
 
 			counters.copied_during_frame |= source_counters.copied_during_frame;
+			counters.reversed_clear_value = source_counters.reversed_clear_value;
 		}
 	}
 };
@@ -239,7 +241,10 @@ struct __declspec(uuid("e006e162-33ac-4b9f-b10f-0e15335c7bdb")) generic_depth_de
 			assert(backup.references == 0 && backup.destroy_after_frame != std::numeric_limits<uint64_t>::max());
 
 			const resource_desc existing_desc = device->get_resource_desc(backup.backup_texture);
-			if (desc.texture.width == existing_desc.texture.width && desc.texture.height == existing_desc.texture.height && desc.texture.format == existing_desc.texture.format)
+			if (desc.texture.width == existing_desc.texture.width &&
+				desc.texture.height == existing_desc.texture.height &&
+				desc.texture.format == existing_desc.texture.format &&
+				desc.usage == existing_desc.usage)
 			{
 				backup.references++;
 				backup.depth_stencil_resource = resource;
@@ -261,7 +266,7 @@ struct __declspec(uuid("e006e162-33ac-4b9f-b10f-0e15335c7bdb")) generic_depth_de
 		else
 		{
 			depth_stencil_backups.pop_back();
-			reshade::log_message(reshade::log_level::error, "Failed to create backup depth-stencil texture!");
+			reshade::log::message(reshade::log::level::error, "Failed to create backup depth-stencil texture!");
 
 			return nullptr;
 		}
@@ -330,7 +335,7 @@ static bool check_aspect_ratio(float width_to_check, float height_to_check, floa
 	const float aspect_ratio_delta = (width / height) - (width_to_check / height_to_check);
 
 	// Accept if dimensions are similar in value or almost exact multiples
-	return std::fabs(aspect_ratio_delta) <= 0.1f && ((w_ratio <= 1.85f && w_ratio >= 0.5f && h_ratio <= 1.85f && h_ratio >= 0.5f) ||
+	return std::abs(aspect_ratio_delta) <= 0.1f && ((w_ratio <= 1.85f && w_ratio >= 0.5f && h_ratio <= 1.85f && h_ratio >= 0.5f) ||
 		(s_use_aspect_ratio_heuristics == 2 && std::modf(w_ratio, &w_ratio) <= 0.02f && std::modf(h_ratio, &h_ratio) <= 0.02f));
 }
 
@@ -526,7 +531,7 @@ static bool on_create_resource(device *device, resource_desc &desc, subresource_
 		return false; // Skip resources that are not 2D textures
 
 	if ((desc.texture.samples > 1 && !device->check_capability(device_caps::resolve_depth_stencil)) || (desc.usage & resource_usage::depth_stencil) == 0 || desc.texture.format == format::s8_uint)
-		return false; // Skip MSAA textures and resources that are not used as depth buffers
+		return false; // Skip multisampled textures and resources that are not used as depth buffers
 
 	switch (device->get_api())
 	{
@@ -540,7 +545,7 @@ static bool on_create_resource(device *device, resource_desc &desc, subresource_
 		if (desc.texture.width <= 512)
 			return false;
 		if (desc.texture.format == format::d32_float || desc.texture.format == format::d32_float_s8_uint)
-			reshade::log_message(reshade::log_level::warning, "Replacing high bit depth depth-stencil format with a lower bit depth format");
+			reshade::log::message(reshade::log::level::warning, "Replacing high bit depth depth-stencil format with a lower bit depth format");
 		// Replace texture format with special format that supports normal sampling (see https://aras-p.info/texts/D3D9GPUHacks.html#depth)
 		desc.texture.format = format::intz;
 		desc.usage |= resource_usage::shader_resource;
@@ -573,7 +578,7 @@ static bool on_create_resource_view(device *device, resource resource, resource_
 		return false;
 
 	const resource_desc texture_desc = device->get_resource_desc(resource);
-	// Only non-MSAA textures where modified, so skip all others
+	// Only non-multisampled textures where modified, so skip all others
 	if ((texture_desc.texture.samples > 1 && !device->check_capability(device_caps::resolve_depth_stencil)) || (texture_desc.usage & resource_usage::depth_stencil) == 0)
 		return false;
 
@@ -587,7 +592,7 @@ static bool on_create_resource_view(device *device, resource resource, resource_
 		break;
 	}
 
-	// Only need to set the rest of the fields if the application did not pass in a valid description already
+	// Only need to set the rest of the members if the application did not pass in a valid description already
 	if (desc.type == resource_view_type::unknown)
 	{
 		desc.type = texture_desc.texture.depth_or_layers > 1 ? resource_view_type::texture_2d_array : resource_view_type::texture_2d;
@@ -621,7 +626,7 @@ static void on_destroy_resource(device *device, resource resource)
 		{
 			lock.unlock();
 
-			reshade::log_message(reshade::log_level::warning, "A depth-stencil resource was destroyed while still in use.");
+			reshade::log::message(reshade::log::level::warning, "A depth-stencil resource was destroyed while still in use.");
 
 			// This is bad ... the resource may still be in use by an effect on the GPU and destroying it would crash it
 			// Try to mitigate that somehow by delaying this thread a little to hopefully give the GPU enough time to catch up before the resource memory is deallocated
@@ -725,14 +730,24 @@ static void on_bind_depth_stencil(command_list *cmd_list, uint32_t, const resour
 static bool on_clear_depth_stencil(command_list *cmd_list, resource_view dsv, const float *depth, const uint8_t *, uint32_t, const rect *)
 {
 	// Ignore clears that do not affect the depth buffer (stencil clears)
-	if (depth != nullptr && s_preserve_depth_buffers)
+	if (depth != nullptr)
 	{
 		auto &state = cmd_list->get_private_data<state_tracking>();
 
 		const resource depth_stencil = cmd_list->get_device()->get_resource_from_view(dsv);
 
 		// Note: This does not work when called from 'vkCmdClearAttachments', since it is invalid to copy a resource inside an active render pass
-		on_clear_depth_impl(cmd_list, state, depth_stencil, clear_op::clear_depth_stencil_view);
+		if (s_preserve_depth_buffers)
+			on_clear_depth_impl(cmd_list, state, depth_stencil, clear_op::clear_depth_stencil_view);
+
+		if (*depth != 1.0f)
+		{
+			std::shared_lock<std::shared_mutex> lock(s_mutex, std::defer_lock);
+			if (state.is_queue)
+				lock.lock();
+
+			state.counters_per_used_depth_stencil[depth_stencil].reversed_clear_value = true;
+		}
 	}
 
 	return false;
@@ -900,7 +915,7 @@ static void on_begin_render_effects(effect_runtime *runtime, command_list *cmd_l
 
 		const resource_desc desc = device->get_resource_desc(resource);
 		if (desc.texture.samples > 1 && !device->check_capability(device_caps::resolve_depth_stencil))
-			continue; // Ignore MSAA textures, since they would need to be resolved first
+			continue; // Ignore multisampled textures, since they would need to be resolved first
 
 		if (s_use_format_filtering && !check_depth_format(desc.texture.format))
 			continue;
@@ -1024,7 +1039,9 @@ static void on_begin_render_effects(effect_runtime *runtime, command_list *cmd_l
 						assert(device->check_capability(device_caps::resolve_depth_stencil));
 
 						cmd_list->barrier(best_match, old_state, resource_usage::resolve_source);
+						cmd_list->barrier(backup_texture, resource_usage::copy_dest, resource_usage::resolve_dest);
 						cmd_list->resolve_texture_region(best_match, 0, nullptr, backup_texture, 0, 0, 0, 0, format_to_default_typed(best_match_desc.texture.format));
+						cmd_list->barrier(backup_texture, resource_usage::resolve_dest, resource_usage::copy_dest);
 						cmd_list->barrier(best_match, resource_usage::resolve_source, old_state);
 					}
 					else
@@ -1085,7 +1102,7 @@ static void on_finish_render_effects(effect_runtime *runtime, command_list *cmd_
 	}
 }
 
-static inline const char *format_to_string(format format)
+static const char *const format_to_string(format format)
 {
 	switch (format)
 	{
@@ -1230,7 +1247,7 @@ static void draw_settings_overlay(effect_runtime *runtime)
 	for (const depth_stencil_item &item : sorted_item_list)
 	{
 		bool disabled = item.unusable;
-		if (item.desc.texture.samples > 1 && !device->check_capability(device_caps::resolve_depth_stencil)) // Disable widget for MSAA textures
+		if (item.desc.texture.samples > 1 && !device->check_capability(device_caps::resolve_depth_stencil)) // Disable widget for multisampled textures
 			has_msaa_depth_stencil = disabled = true;
 
 		const bool selected = item.resource == data.selected_depth_stencil;
@@ -1238,8 +1255,8 @@ static void draw_settings_overlay(effect_runtime *runtime)
 			(!s_use_format_filtering || check_depth_format(item.desc.texture.format)) &&
 			(!s_use_aspect_ratio_heuristics || check_aspect_ratio(static_cast<float>(item.desc.texture.width), static_cast<float>(item.desc.texture.height), static_cast<float>(frame_width), static_cast<float>(frame_height)));
 
-		char label[512] = "";
-		sprintf_s(label, "%c 0x%016llx", (selected ? '>' : ' '), item.resource.handle);
+		char label[21];
+		std::snprintf(label, std::size(label), "%c 0x%016llx", (selected ? '>' : ' '), item.resource.handle);
 
 		ImGui::BeginDisabled(disabled);
 		ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyle().Colors[disabled ? ImGuiCol_TextDisabled : selected || candidate ? ImGuiCol_ButtonActive : ImGuiCol_Text]);
@@ -1252,14 +1269,15 @@ static void draw_settings_overlay(effect_runtime *runtime)
 		}
 
 		ImGui::SameLine();
-		ImGui::Text("| %4ux%-4u | %s | %5u draw calls (%5u indirect) ==> %8u vertices |%s",
+		ImGui::Text("| %4ux%-4u | %s | %5u draw calls (%5u indirect) ==> %8u vertices |%s%s",
 			item.desc.texture.width,
 			item.desc.texture.height,
 			format_to_string(item.desc.texture.format),
 			item.snapshot.total_stats.drawcalls,
 			item.snapshot.total_stats.drawcalls_indirect,
 			item.snapshot.total_stats.vertices,
-			(item.desc.texture.samples > 1 ? " MSAA" : ""));
+			item.desc.texture.samples > 1 ? " Multisampled" : "",
+			item.snapshot.reversed_clear_value ? " Reversed" : "");
 
 		ImGui::PopStyleColor();
 		ImGui::EndDisabled();
@@ -1280,7 +1298,7 @@ static void draw_settings_overlay(effect_runtime *runtime)
 			{
 				const clear_stats &clear_stats = item.snapshot.clears[clear_index - 1];
 
-				sprintf_s(label, "%c   CLEAR %2u", clear_stats.copied_during_frame ? '>' : ' ', clear_index);
+				std::snprintf(label, std::size(label), "%c   CLEAR %2u", clear_stats.copied_during_frame ? '>' : ' ', clear_index);
 
 				if (bool value = (depth_stencil_backup->force_clear_index == clear_index);
 					ImGui::Checkbox(label, &value))

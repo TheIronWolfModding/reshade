@@ -8,6 +8,7 @@
 #include "ini_file.hpp"
 #include "addon_manager.hpp"
 #include "input.hpp"
+#include <algorithm> // std::all_of, std::find, std::find_if, std::for_each, std::remove_if
 
 extern bool resolve_preset_path(std::filesystem::path &path, std::error_code &ec);
 
@@ -1210,15 +1211,16 @@ void reshade::runtime::set_preprocessor_definition_for_effect([[maybe_unused]] c
 
 		if ((scope_mask_updated & (GLOBAL_SCOPE_FLAG | PRESET_SCOPE_FLAG)) != 0)
 		{
-			_should_reload_effect = _effects.size();
+			_reload_required_effects = { _effects.size() };
 		}
 		else
 		{
 			const size_t effect_index = std::distance(_effects.cbegin(), std::find_if(_effects.cbegin(), _effects.cend(),
 				[effect_name = std::filesystem::u8path(effect_name_string)](const effect &effect) { return effect_name == effect.source_file.filename(); }));
 
-			if (effect_index != _should_reload_effect || _should_reload_effect == std::numeric_limits<size_t>::max())
-				_should_reload_effect = effect_index;
+			if (std::find(_reload_required_effects.cbegin(), _reload_required_effects.cend(), _effects.size()) == _reload_required_effects.cend() &&
+				std::find(_reload_required_effects.cbegin(), _reload_required_effects.cend(), effect_index) == _reload_required_effects.cend())
+				_reload_required_effects.push_back(effect_index);
 		}
 	}
 #endif
@@ -1540,3 +1542,23 @@ bool reshade::runtime::open_overlay(bool /*open*/, api::input_source /*source*/)
 	return false;
 }
 #endif
+
+void reshade::runtime::reload_effect_next_frame([[maybe_unused]] const char *effect_name)
+{
+#if RESHADE_FX
+	if (effect_name == nullptr || *effect_name == '\0')
+	{
+		_reload_required_effects = { _effects.size() };
+		return;
+	}
+
+	if (auto it = std::find_if(_effects.cbegin(), _effects.cend(), [effect_name = std::string_view(effect_name)](const effect &effect) { return effect.source_file.filename().u8string() == effect_name; });
+		it != _effects.cend())
+	{
+		if (const size_t effect_index = static_cast<size_t>(std::distance(_effects.cbegin(), it));
+			std::find(_reload_required_effects.cbegin(), _reload_required_effects.cend(), _effects.size()) == _reload_required_effects.cend() &&
+			std::find(_reload_required_effects.cbegin(), _reload_required_effects.cend(), effect_index) == _reload_required_effects.cend())
+			_reload_required_effects.push_back(effect_index);
+	}
+#endif
+}

@@ -13,6 +13,8 @@
 #include "dll_log.hpp"
 #include "addon_manager.hpp"
 #include "runtime_manager.hpp"
+#include <cmath> // std::abs, std::ceil, std::floor
+#include <algorithm> // std::max, std::min
 
 reshade::openvr::swapchain_impl::swapchain_impl(D3D10Device *device, vr::IVRCompositor *compositor) :
 	swapchain_impl(device, device, compositor)
@@ -49,9 +51,9 @@ reshade::openvr::swapchain_impl::swapchain_impl(api::device *device, api::comman
 
 reshade::openvr::swapchain_impl::~swapchain_impl()
 {
-	extern thread_local reshade::opengl::device_context_impl *g_current_context;
+	extern thread_local reshade::opengl::device_context_impl *g_opengl_context;
 	// Do not access '_device' object to check the device API, in case it was already destroyed
-	if (_is_opengl && g_current_context == nullptr)
+	if (_is_opengl && g_opengl_context == nullptr)
 	{
 		return; // Cannot clean up if OpenGL context was already destroyed
 	}
@@ -128,7 +130,7 @@ bool reshade::openvr::swapchain_impl::on_init()
 }
 void reshade::openvr::swapchain_impl::on_reset()
 {
-	if (!is_initialized())
+	if (_side_by_side_texture == 0)
 		return;
 
 	reset_effect_runtime(this);
@@ -148,7 +150,7 @@ bool reshade::openvr::swapchain_impl::on_vr_submit(api::command_queue *queue, vr
 	const api::resource_desc source_desc = _device->get_resource_desc(eye_texture);
 
 	if (source_desc.texture.samples > 1 && !_device->check_capability(api::device_caps::resolve_region))
-		return false; // Can only copy whole subresources when the resource is multisampled
+		return false; // When the resource is multisampled, can only copy whole subresources 
 
 	reshade::api::subresource_box source_box;
 	if (bounds != nullptr)
@@ -187,7 +189,7 @@ bool reshade::openvr::swapchain_impl::on_vr_submit(api::command_queue *queue, vr
 
 	if (width_difference > 2 || height_difference > 2 || api::format_to_typeless(source_desc.texture.format) != api::format_to_typeless(target_desc.texture.format))
 	{
-		LOG(INFO) << "Resizing runtime " << this << " in VR to " << target_width << "x" << region_height << " ...";
+		reshade::log::message(reshade::log::level::info, "Resizing runtime %p in VR to %ux%u ...", this, target_width, region_height);
 
 		on_reset();
 
@@ -199,7 +201,7 @@ bool reshade::openvr::swapchain_impl::on_vr_submit(api::command_queue *queue, vr
 				api::resource_desc(target_width, region_height, 1, 1, format, 1, api::memory_heap::gpu_only, api::resource_usage::render_target | api::resource_usage::copy_source | api::resource_usage::copy_dest),
 				nullptr, api::resource_usage::general, &_side_by_side_texture))
 		{
-			LOG(ERROR) << "Failed to create region texture!";
+			reshade::log::message(reshade::log::level::error, "Failed to create region texture!");
 			return false;
 		}
 
@@ -222,6 +224,7 @@ bool reshade::openvr::swapchain_impl::on_vr_submit(api::command_queue *queue, vr
 	if (source_desc.texture.samples <= 1)
 	{
 		// In all but D3D12 the eye texture resource is already in copy source state at this point
+		// See https://github.com/ValveSoftware/openvr/wiki/Vulkan#image-layout
 		if (is_d3d12)
 			cmd_list->barrier(eye_texture, api::resource_usage::shader_resource_pixel, api::resource_usage::copy_source);
 		cmd_list->barrier(_side_by_side_texture, api::resource_usage::general, api::resource_usage::copy_dest);

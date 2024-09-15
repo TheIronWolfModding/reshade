@@ -63,7 +63,7 @@ bool D3D12GraphicsCommandList::check_and_upgrade_interface(REFIID riid)
 			if (FAILED(_orig->QueryInterface(riid, reinterpret_cast<void **>(&new_interface))))
 				return false;
 #if 0
-			LOG(DEBUG) << "Upgrading ID3D12GraphicsCommandList" << _interface_version << " object " << this << " to ID3D12GraphicsCommandList" << version << '.';
+			reshade::log::message(reshade::log::level::debug, "Upgrading ID3D12GraphicsCommandList%hu object %p to ID3D12GraphicsCommandList%hu.", _interface_version, this, version);
 #endif
 			_orig->Release();
 			_orig = static_cast<ID3D12GraphicsCommandList *>(new_interface);
@@ -107,13 +107,13 @@ ULONG   STDMETHODCALLTYPE D3D12GraphicsCommandList::Release()
 	const auto orig = _orig;
 	const auto interface_version = _interface_version;
 #if 0
-	LOG(DEBUG) << "Destroying " << "ID3D12GraphicsCommandList" << interface_version << " object " << this << " (" << orig << ").";
+	reshade::log::message(reshade::log::level::debug, "Destroying ID3D12GraphicsCommandList%hu object %p (%p).", interface_version, this, orig);
 #endif
 	delete this;
 
 	const ULONG ref_orig = orig->Release();
 	if (ref_orig != 0) // Verify internal reference count
-		LOG(WARN) << "Reference count for " << "ID3D12GraphicsCommandList" << interface_version << " object " << this << " (" << orig << ") is inconsistent (" << ref_orig << ").";
+		reshade::log::message(reshade::log::level::warning, "Reference count for ID3D12GraphicsCommandList%hu object %p (%p) is inconsistent (%lu).", interface_version, this, orig, ref_orig);
 	return 0;
 }
 
@@ -194,7 +194,7 @@ void STDMETHODCALLTYPE D3D12GraphicsCommandList::ClearState(ID3D12PipelineState 
 
 	reshade::invoke_addon_event<reshade::addon_event::bind_pipeline>(this, reshade::api::pipeline_stage::all, to_handle(pPipelineState));
 
-	// When ClearState is called, all currently bound resources are unbound.
+	// When 'ClearState' is called, all currently bound resources are unbound.
 	// The primitive topology is set to D3D_PRIMITIVE_TOPOLOGY_UNDEFINED. Viewports, scissor rectangles, stencil reference value, and the blend factor are set to empty values (all zeros).
 	const reshade::api::dynamic_state states[4] = { reshade::api::dynamic_state::primitive_topology, reshade::api::dynamic_state::blend_constant, reshade::api::dynamic_state::front_stencil_reference_value, reshade::api::dynamic_state::back_stencil_reference_value };
 	const uint32_t values[4] = { static_cast<uint32_t>(reshade::api::primitive_topology::undefined), 0, 0, 0 };

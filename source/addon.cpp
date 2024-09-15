@@ -10,6 +10,7 @@
 #include "runtime.hpp"
 #include "dll_log.hpp"
 #include "ini_file.hpp"
+#include <cstring> // std::strlen
 
 void ReShadeLogMessage([[maybe_unused]] HMODULE module, int level, const char *message)
 {
@@ -23,7 +24,7 @@ void ReShadeLogMessage([[maybe_unused]] HMODULE module, int level, const char *m
 	}
 #endif
 
-	reshade::log::message(static_cast<reshade::log::level>(level)) << prefix << message;
+	reshade::log::message(static_cast<reshade::log::level>(level), "%.*s%s", static_cast<int>(prefix.size()), prefix.c_str(), message);
 }
 
 void ReShadeGetBasePath(char *path, size_t *size)
@@ -86,7 +87,7 @@ bool ReShadeGetConfigValue(HMODULE, reshade::api::effect_runtime *runtime, const
 
 void ReShadeSetConfigValue(HMODULE module, reshade::api::effect_runtime *runtime, const char *section, const char *key, const char *value)
 {
-	return ReShadeSetConfigArray(module, runtime, section, key, value, value != nullptr ? strlen(value) : 0);
+	return ReShadeSetConfigArray(module, runtime, section, key, value, value != nullptr ? std::strlen(value) : 0);
 }
 void ReShadeSetConfigArray(HMODULE, reshade::api::effect_runtime *runtime, const char *section, const char *key, const char *value, size_t size)
 {
@@ -330,7 +331,7 @@ extern "C" __declspec(dllexport) const void *ReShadeGetImGuiFunctionTable(uint32
 	if (version == 18600)
 		return &g_imgui_function_table_18600;
 
-	LOG(ERROR) << "Failed to retrieve ImGui function table, because the requested ImGui version (" << version << ") is not supported.";
+	reshade::log::message(reshade::log::level::error, "Failed to retrieve ImGui function table, because the requested ImGui version (%u) is not supported.", version);
 	return nullptr;
 }
 

@@ -15,7 +15,7 @@
 #include <shared_mutex>
 
 class ini_file;
-namespace reshadefx { struct sampler_info; }
+namespace reshadefx { struct sampler_desc; }
 
 namespace reshade
 {
@@ -55,7 +55,7 @@ namespace reshade
 		/// <summary>
 		/// Gets the path to the configuration file used by this effect runtime.
 		/// </summary>
-		inline const std::filesystem::path &get_config_path() const { return _config_path; }
+		const std::filesystem::path &get_config_path() const { return _config_path; }
 
 #if RESHADE_FX
 		/// <summary>
@@ -168,6 +168,8 @@ namespace reshade
 
 		void set_color_space(api::color_space color_space) final { _back_buffer_color_space = color_space; }
 
+		void reload_effect_next_frame(const char *effect_name) final;
+
 	private:
 		static void check_for_update();
 
@@ -182,7 +184,7 @@ namespace reshade
 
 		bool load_effect(const std::filesystem::path &source_file, const ini_file &preset, size_t effect_index, bool force_load = false, bool preprocess_required = false);
 		bool create_effect(size_t effect_index);
-		bool create_effect_sampler_state(const reshadefx::sampler_info &info, api::sampler &sampler);
+		bool create_effect_sampler_state(const reshadefx::sampler_desc &desc, api::sampler &sampler);
 		void destroy_effect(size_t effect_index);
 
 		void load_textures();
@@ -292,7 +294,7 @@ namespace reshade
 
 		std::vector<std::pair<std::string, std::string>> _global_preprocessor_definitions;
 		std::unordered_map<std::string, std::vector<std::pair<std::string, std::string>>> _preset_preprocessor_definitions;
-		size_t _should_reload_effect = std::numeric_limits<size_t>::max();
+		std::vector<size_t> _reload_required_effects;
 		bool _block_effect_reload_this_frame = false;
 
 		std::filesystem::path _effect_cache_path;
@@ -450,6 +452,8 @@ namespace reshade
 		bool _no_font_scaling = false;
 		bool _block_input_next_frame = false;
 		unsigned int _overlay_key_data[4];
+		unsigned int _fps_key_data[4] = {};
+		unsigned int _frametime_key_data[4] = {};
 		unsigned int _fps_pos = 1;
 		unsigned int _clock_format = 0;
 		unsigned int _input_processing_mode = 2;

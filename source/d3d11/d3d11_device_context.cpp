@@ -75,7 +75,7 @@ bool D3D11DeviceContext::check_and_upgrade_interface(REFIID riid)
 			if (FAILED(_orig->QueryInterface(riid, reinterpret_cast<void **>(&new_interface))))
 				return false;
 #if RESHADE_VERBOSE_LOG
-			LOG(DEBUG) << "Upgrading ID3D11DeviceContext" << _interface_version << " object " << this << " to ID3D11DeviceContext" << version << '.';
+			reshade::log::message(reshade::log::level::debug, "Upgrading ID3D11DeviceContext%hu object %p to ID3D11DeviceContext%hu.", _interface_version, this, version);
 #endif
 			_orig->Release();
 			_orig = static_cast<ID3D11DeviceContext *>(new_interface);
@@ -132,13 +132,13 @@ ULONG   STDMETHODCALLTYPE D3D11DeviceContext::Release()
 	const auto orig = _orig;
 	const auto interface_version = _interface_version;
 #if RESHADE_VERBOSE_LOG
-	LOG(DEBUG) << "Destroying " << "ID3D11DeviceContext" << interface_version << " object " << this << " (" << orig << ").";
+	reshade::log::message(reshade::log::level::debug, "Destroying ID3D11DeviceContext%hu object %p (%p).", interface_version, this, orig);
 #endif
 	delete this;
 
 	const ULONG ref_orig = orig->Release();
 	if (ref_orig != 0) // Verify internal reference count
-		LOG(WARN) << "Reference count for " << "ID3D11DeviceContext" << interface_version << " object " << this << " (" << orig << ") is inconsistent (" << ref_orig << ").";
+		reshade::log::message(reshade::log::level::warning, "Reference count for ID3D11DeviceContext%hu object %p (%p) is inconsistent (%lu).", interface_version, this, orig, ref_orig);
 	return 0;
 }
 
@@ -1500,8 +1500,7 @@ void D3D11DeviceContext::invoke_bind_samplers_event(reshade::api::shader_stage s
 	reshade::invoke_addon_event<reshade::addon_event::push_descriptors>(
 		this,
 		stage,
-		// See global pipeline layout specified in 'device_impl::device_impl'
-		reshade::d3d11::global_pipeline_layout, 0,
+		_device->_global_pipeline_layout, 0,
 		reshade::api::descriptor_table_update { {}, first, 0, count, reshade::api::descriptor_type::sampler, descriptors });
 }
 void D3D11DeviceContext::invoke_bind_shader_resource_views_event(reshade::api::shader_stage stage, UINT first, UINT count, ID3D11ShaderResourceView *const *objects)
@@ -1524,8 +1523,7 @@ void D3D11DeviceContext::invoke_bind_shader_resource_views_event(reshade::api::s
 	reshade::invoke_addon_event<reshade::addon_event::push_descriptors>(
 		this,
 		stage,
-		// See global pipeline layout specified in 'device_impl::device_impl'
-		reshade::d3d11::global_pipeline_layout, 1,
+		_device->_global_pipeline_layout, 1,
 		reshade::api::descriptor_table_update { {}, first, 0, count, reshade::api::descriptor_type::shader_resource_view, descriptors });
 }
 void D3D11DeviceContext::invoke_bind_unordered_access_views_event(reshade::api::shader_stage stage, UINT first, UINT count, ID3D11UnorderedAccessView *const *objects)
@@ -1548,8 +1546,7 @@ void D3D11DeviceContext::invoke_bind_unordered_access_views_event(reshade::api::
 	reshade::invoke_addon_event<reshade::addon_event::push_descriptors>(
 		this,
 		stage,
-		// See global pipeline layout specified in 'device_impl::device_impl'
-		reshade::d3d11::global_pipeline_layout, 3,
+		_device->_global_pipeline_layout, 3,
 		reshade::api::descriptor_table_update { {}, first, 0, count, reshade::api::descriptor_type::unordered_access_view, descriptors });
 }
 void D3D11DeviceContext::invoke_bind_constant_buffers_event(reshade::api::shader_stage stage, UINT first, UINT count, ID3D11Buffer *const *objects, const UINT *first_constant, const UINT *constant_count)
@@ -1567,8 +1564,7 @@ void D3D11DeviceContext::invoke_bind_constant_buffers_event(reshade::api::shader
 	reshade::invoke_addon_event<reshade::addon_event::push_descriptors>(
 		this,
 		stage,
-		// See global pipeline layout specified in 'device_impl::device_impl'
-		reshade::d3d11::global_pipeline_layout, 2,
+		_device->_global_pipeline_layout, 2,
 		reshade::api::descriptor_table_update { {}, first, 0, count, reshade::api::descriptor_type::constant_buffer, descriptors });
 }
 #endif
