@@ -865,9 +865,9 @@ void reshade::runtime::draw_gui()
 		open_overlay(show_overlay, show_overlay_source);
 
 #if RESHADE_FX
-	const bool show_splash_window = _show_splash && (is_loading() || (_reload_count <= 1 && (_last_present_time - _last_reload_time) < std::chrono::seconds(5)) || (!_show_overlay && _tutorial_index == 0 && _input != nullptr));
+	const bool show_splash_window = _show_splash && (is_loading() || (_reload_count <= 1 && (_last_present_time - _last_reload_time) < std::chrono::milliseconds(250)) || (!_show_overlay && _tutorial_index == 0 && _input != nullptr));
 #else
-	const bool show_splash_window = _show_splash && (_last_present_time - _last_reload_time) < std::chrono::seconds(5);
+	const bool show_splash_window = _show_splash && (_last_present_time - _last_reload_time) < std::chrono::milliseconds(250);
 #endif
 
 	// Do not show this message in the same frame the screenshot is taken (so that it won't show up on the GUI screenshot)
@@ -1146,7 +1146,7 @@ void reshade::runtime::draw_gui()
 		else
 #endif
 		{
-			ImGui::TextUnformatted("ReShade " VERSION_STRING_PRODUCT);
+			ImGui::TextUnformatted("ReShade 6.3.1");
 
 			if ((s_latest_version[0] > VERSION_MAJOR) ||
 				(s_latest_version[0] == VERSION_MAJOR && s_latest_version[1] > VERSION_MINOR) ||
