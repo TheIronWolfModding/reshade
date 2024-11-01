@@ -1146,7 +1146,7 @@ void reshade::runtime::draw_gui()
 		else
 #endif
 		{
-			ImGui::TextUnformatted("ReShade 6.3.1");
+			ImGui::TextUnformatted("ReShade 6.3.3");
 
 			if ((s_latest_version[0] > VERSION_MAJOR) ||
 				(s_latest_version[0] == VERSION_MAJOR && s_latest_version[1] > VERSION_MINOR) ||
