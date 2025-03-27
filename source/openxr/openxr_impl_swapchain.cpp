@@ -130,8 +130,10 @@ void reshade::openxr::swapchain_impl::on_present(uint32_t view_count, const api:
 	api::command_list *const cmd_list = _graphics_queue->get_immediate_command_list();
 
 	// Copy source textures into side-by-side texture
+	// GTR2_SPECIFIC: copy_source in main
 	const auto before_state = _device->get_api() == api::device_api::d3d12 ? api::resource_usage::shader_resource_pixel : api::resource_usage::render_target;
 
+	// GTR2_SPECIFIC: old general in main
 	cmd_list->barrier(_side_by_side_texture, api::resource_usage::present, api::resource_usage::copy_dest);
 
 	for (uint32_t i = 0; i < view_count; ++i)
@@ -142,6 +144,7 @@ void reshade::openxr::swapchain_impl::on_present(uint32_t view_count, const api:
 		cmd_list->copy_texture_region(view_textures[i], view_layers[i], &view_boxes[i], _side_by_side_texture, 0, &dest_box, api::filter_mode::min_mag_mip_point);
 	}
 
+	// GTR2_SPECIFIC: new general in main
 	cmd_list->barrier(_side_by_side_texture, api::resource_usage::copy_dest, api::resource_usage::present);
 
 #if RESHADE_ADDON
