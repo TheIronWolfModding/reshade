@@ -130,7 +130,7 @@ void reshade::openxr::swapchain_impl::on_present(uint32_t view_count, const api:
 	api::command_list *const cmd_list = _graphics_queue->get_immediate_command_list();
 
 	// Copy source textures into side-by-side texture
-	const auto before_state = _device->get_api() == api::device_api::d3d12 ? api::resource_usage::shader_resource_pixel : api::resource_usage::copy_source;
+	const auto before_state = _device->get_api() == api::device_api::d3d12 ? api::resource_usage::shader_resource_pixel : api::resource_usage::render_target;
 
 	cmd_list->barrier(_side_by_side_texture, api::resource_usage::present, api::resource_usage::copy_dest);
 
