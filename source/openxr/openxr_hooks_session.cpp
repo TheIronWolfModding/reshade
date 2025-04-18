@@ -307,6 +307,19 @@ XrResult XRAPI_CALL xrEndFrame(XrSession session, const XrFrameEndInfo *frameEnd
 			{
 				const XrCompositionLayerProjection *const layer = reinterpret_cast<const XrCompositionLayerProjection *>(frameEndInfo->layers[layer_index]);
 
+				{
+					XrSwapchainSubImage const &sub_image = layer->views[0].subImage;
+					const openxr_swapchain_data &swapchain_data = s_openxr_swapchains.at(sub_image.swapchain);
+					auto double_wide_texture = swapchain_data.surface_images[swapchain_data.last_released_index];
+					static const auto vd = data.swapchain_impl->get_device()->get_resource_desc(double_wide_texture);
+					if (vd.texture.width > sub_image.imageRect.extent.width)
+					{
+						// Assume double wide is passed in.
+						data.swapchain_impl->on_present_double_wide(&double_wide_texture);
+						break;
+					}
+				}
+
 				uint32_t view_count = 0;
 				temp_mem<reshade::api::resource, 2> view_textures(layer->viewCount);
 				temp_mem<reshade::api::subresource_box, 2> view_boxes(layer->viewCount);
@@ -324,13 +337,6 @@ XrResult XRAPI_CALL xrEndFrame(XrSession session, const XrFrameEndInfo *frameEnd
 						break; // Cannot apply effects to a static image, since it would just stack on top of the previous result every frame
 
 					view_textures[view_count] = swapchain_data.surface_images[swapchain_data.last_released_index];
-					static const auto vd = data.swapchain_impl->get_device()->get_resource_desc(view_textures[view_count]);
-					if (vd.texture.width > sub_image.imageRect.extent.width)
-					{
-						// Assume double wide is passed in.
-						data.swapchain_impl->on_present_double_wide(view_textures.p);
-						break;
-					}
 
 					assert(sub_image.imageRect.offset.x >= 0 && sub_image.imageRect.offset.y >= 0 && sub_image.imageRect.extent.width >= 0 && sub_image.imageRect.extent.height >= 0);
 
