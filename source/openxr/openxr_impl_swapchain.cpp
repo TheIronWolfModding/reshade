@@ -170,11 +170,11 @@ void reshade::openxr::swapchain_impl::on_present(uint32_t view_count, const api:
 	_graphics_queue->flush_immediate_command_list();
 }
 
-void reshade::openxr::swapchain_impl::on_present_double_wide(api::resource *view_texture)
+void reshade::openxr::swapchain_impl::on_present_double_wide(api::resource *double_wide_view_texture)
 {
-	const api::resource_desc source_desc = _device->get_resource_desc(*view_texture);
-	const uint32_t target_width = source_desc.texture.width;
-	const uint32_t region_height = source_desc.texture.height;
+	static const api::resource_desc source_desc = _device->get_resource_desc(*double_wide_view_texture);
+	static const uint32_t target_width = source_desc.texture.width;
+	static const uint32_t region_height = source_desc.texture.height;
 
 	const api::resource_desc target_desc = _side_by_side_texture != 0 ? _device->get_resource_desc(_side_by_side_texture) : api::resource_desc();
 	if (target_width != target_desc.texture.width || region_height != target_desc.texture.height || api::format_to_typeless(source_desc.texture.format) != api::format_to_typeless(target_desc.texture.format))
@@ -203,12 +203,15 @@ void reshade::openxr::swapchain_impl::on_present_double_wide(api::resource *view
 	
 	api::command_list *const cmd_list = _graphics_queue->get_immediate_command_list();
 
+	// Applying effects directly into double_wide_view_texture is probably possible but is tricky because image is coming from a swapchain and I will need to figure
+	// everything that happens in the block above.
+
 	// GTR2_SPECIFIC: copy_source in main
 	const auto before_state = _device->get_api() == api::device_api::d3d12 ? api::resource_usage::shader_resource_pixel : api::resource_usage::render_target;
 
 	// GTR2_SPECIFIC: old general in main
 	cmd_list->barrier(_side_by_side_texture, api::resource_usage::present, api::resource_usage::copy_dest);
-    cmd_list->copy_resource(*view_texture, _side_by_side_texture);
+    cmd_list->copy_resource(*double_wide_view_texture, _side_by_side_texture);
 	// GTR2_SPECIFIC: new general in main
 	cmd_list->barrier(_side_by_side_texture, api::resource_usage::copy_dest, api::resource_usage::present);
 
@@ -219,7 +222,7 @@ void reshade::openxr::swapchain_impl::on_present_double_wide(api::resource *view
 	present_effect_runtime(this, _graphics_queue);
 	
 	cmd_list->barrier(_side_by_side_texture, api::resource_usage::present, api::resource_usage::copy_source);
-	cmd_list->copy_resource(_side_by_side_texture, *view_texture);
+	cmd_list->copy_resource(_side_by_side_texture, *double_wide_view_texture);
 	cmd_list->barrier(_side_by_side_texture, api::resource_usage::copy_source, api::resource_usage::present);
 
 	_graphics_queue->flush_immediate_command_list();

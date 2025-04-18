@@ -37,7 +37,7 @@ namespace reshade::openxr
 		void on_reset();
 
 		void on_present(uint32_t view_count, const api::resource *view_textures, const api::subresource_box *view_boxes, const uint32_t *view_layers);
-		void on_present_double_wide(api::resource *view_texture);
+		void on_present_double_wide(api::resource *double_wide_view_texture);
 
 	private:
 		api::device *const _device;
