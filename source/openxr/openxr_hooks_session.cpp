@@ -324,6 +324,13 @@ XrResult XRAPI_CALL xrEndFrame(XrSession session, const XrFrameEndInfo *frameEnd
 						break; // Cannot apply effects to a static image, since it would just stack on top of the previous result every frame
 
 					view_textures[view_count] = swapchain_data.surface_images[swapchain_data.last_released_index];
+					const auto vd = data.swapchain_impl->get_device()->get_resource_desc(view_textures[view_count]);
+					if (vd.texture.width > sub_image.imageRect.extent.width)
+					{
+						// Assume double wide is passed in.
+						data.swapchain_impl->on_present_double_wide(view_textures.p);
+						break;
+					}
 
 					assert(sub_image.imageRect.offset.x >= 0 && sub_image.imageRect.offset.y >= 0 && sub_image.imageRect.extent.width >= 0 && sub_image.imageRect.extent.height >= 0);
 
