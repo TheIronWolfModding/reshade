@@ -203,15 +203,15 @@ void reshade::openxr::swapchain_impl::on_present_double_wide(api::resource *doub
 	
 	api::command_list *const cmd_list = _graphics_queue->get_immediate_command_list();
 
-	// Applying effects directly into double_wide_view_texture is probably possible but is tricky because image is coming from a swapchain and I will need to figure
-	// everything that happens in the block above.
+	// Applying effects directly into double_wide_view_texture is probably possible but is tricky because image is coming from a swapchain (multiple images),
+	// and I will need to figure everything that happens in the block above.  But those 2 before/after copies are not really necessary in double wide case.
 
 	// GTR2_SPECIFIC: copy_source in main
 	const auto before_state = _device->get_api() == api::device_api::d3d12 ? api::resource_usage::shader_resource_pixel : api::resource_usage::render_target;
 
 	// GTR2_SPECIFIC: old general in main
 	cmd_list->barrier(_side_by_side_texture, api::resource_usage::present, api::resource_usage::copy_dest);
-    cmd_list->copy_resource(*double_wide_view_texture, _side_by_side_texture);
+	cmd_list->copy_resource(*double_wide_view_texture, _side_by_side_texture);
 	// GTR2_SPECIFIC: new general in main
 	cmd_list->barrier(_side_by_side_texture, api::resource_usage::copy_dest, api::resource_usage::present);
 
