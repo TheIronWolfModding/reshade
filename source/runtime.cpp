@@ -356,7 +356,7 @@ bool reshade::runtime::on_init()
 		}
 	}
 
-	// Create an empty texture, which is bound to shader resource view slots with an unknown semantic (since it is not valid to bind a zero handle in Vulkan, unless the 'VK_EXT_robustness2' extension is enabled)
+	// Create an empty texture, which is bound to shader resource view slots with an unknown semantic (since it is not valid to bind a zero bb_handle in Vulkan, unless the 'VK_EXT_robustness2' extension is enabled)
 	if (_empty_tex == 0)
 	{
 		// Use VK_FORMAT_R16_SFLOAT format, since it is mandatory according to the spec (see https://www.khronos.org/registry/vulkan/specs/1.1/html/vkspec.html#features-required-format-support)
@@ -450,7 +450,7 @@ bool reshade::runtime::on_init()
 	_frame_count = 0;
 
 	_is_initialized = true;
-	_last_reload_time = std::chrono::high_resolution_clock::now(); // Intentionally set to current time, so that duration to last reload is valid even when there is no reload on init
+	_last_reload_time = std::chrono::high_resolution_clock::now(); // Intentionally set to current time, so that duration to last reload is valid even when there is no reload` init
 
 	_preset_save_successful = true;
 	_last_screenshot_save_successful = true;
@@ -508,6 +508,62 @@ exit_failure:
 
 	return false;
 }
+
+struct bb_cache_item
+{
+	uint64_t handle = 0uLL;
+	reshade::api::resource_view bb_resource_view;
+	reshade::api::resource_view bb_resource_view_second;
+};
+
+std::vector<bb_cache_item> g_bb_cache;
+bool reshade::runtime::on_update_back_buffer()
+{
+	const api::resource back_buffer_resource = get_back_buffer(0);
+	const uint64_t bb_handle = back_buffer_resource.handle;
+
+	_back_buffer_targets.clear();
+
+	for (const auto &item : g_bb_cache)
+	{
+		if (item.handle == bb_handle)
+		{
+			_back_buffer_targets.push_back(item.bb_resource_view);
+			_back_buffer_targets.push_back(item.bb_resource_view_second);
+			return true;
+		}
+	}
+
+	const api::resource_desc back_buffer_desc = _device->get_resource_desc(back_buffer_resource);
+	const bool is_msaa = back_buffer_desc.texture.samples > 1;
+	api::resource_view view;
+	api::resource_view view_second;
+	if (!_device->create_resource_view(
+		back_buffer_resource,
+		api::resource_usage::render_target,
+		api::resource_view_desc(
+		is_msaa ? api::resource_view_type::texture_2d_multisample : api::resource_view_type::texture_2d,
+		api::format_to_default_typed(back_buffer_desc.texture.format, 0), 0, 1, 0, 1),
+		&view) ||
+		!_device->create_resource_view(
+		back_buffer_resource,
+		api::resource_usage::render_target,
+		api::resource_view_desc(
+		is_msaa > 1 ? api::resource_view_type::texture_2d_multisample : api::resource_view_type::texture_2d,
+		api::format_to_default_typed(back_buffer_desc.texture.format, 1), 0, 1, 0, 1),
+		&view_second))
+	{
+		log::message(log::level::error, "Failed to create back buffer render targets!");
+		return false;
+	}
+
+	g_bb_cache.push_back({ bb_handle, view, view_second });
+	_back_buffer_targets.emplace_back(view);
+	_back_buffer_targets.emplace_back(view_second);
+
+	return true;
+}
+
 void reshade::runtime::on_reset()
 {
 	if (_is_initialized)
@@ -3799,7 +3855,7 @@ void reshade::runtime::update_effects()
 			}
 
 			// Force immediate effect initialization of this permutation after reloading
-			// This can cause attempts to create an effect that failed to compile, so need to handle that case in 'create_effect' below
+			// This can cause attempts to create an effect that failed to compile, so need to bb_handle that case in 'create_effect' below
 			if (std::find(_reload_create_queue.cbegin(), _reload_create_queue.cend(), _reload_required_effects[i]) == _reload_create_queue.cend())
 				_reload_create_queue.push_back(_reload_required_effects[i]);
 		}
