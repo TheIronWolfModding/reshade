@@ -509,14 +509,14 @@ exit_failure:
 	return false;
 }
 
-struct bb_cache_item
+struct bb_cached_data
 {
 	uint64_t handle = 0uLL;
 	reshade::api::resource_view bb_resource_view;
 	reshade::api::resource_view bb_resource_view_second; // I don't even know why ReShade needs this one.  :person_shrugging:
 };
 
-std::vector<bb_cache_item> g_bb_cache;
+std::vector<bb_cached_data> g_bb_cache;
 bool reshade::runtime::on_bind_back_buffer()
 {
 	const api::resource back_buffer_resource = get_back_buffer(0);
@@ -524,12 +524,12 @@ bool reshade::runtime::on_bind_back_buffer()
 
 	_back_buffer_targets.clear();
 
-	for (const auto &cached_item : g_bb_cache)
+	for (const auto &cached_bb : g_bb_cache)
 	{
-		if (cached_item.handle == bb_handle)
+		if (cached_bb.handle == bb_handle)
 		{
-			_back_buffer_targets.push_back(cached_item.bb_resource_view);
-			_back_buffer_targets.push_back(cached_item.bb_resource_view_second);
+			_back_buffer_targets.push_back(cached_bb.bb_resource_view);
+			_back_buffer_targets.push_back(cached_bb.bb_resource_view_second);
 			return true;
 		}
 	}
