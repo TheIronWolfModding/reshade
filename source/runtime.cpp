@@ -356,7 +356,7 @@ bool reshade::runtime::on_init()
 		}
 	}
 
-	// Create an empty texture, which is bound to shader resource view slots with an unknown semantic (since it is not valid to bind a zero bb_handle in Vulkan, unless the 'VK_EXT_robustness2' extension is enabled)
+	// Create an empty texture, which is bound to shader resource view slots with an unknown semantic (since it is not valid to bind a zero handle in Vulkan, unless the 'VK_EXT_robustness2' extension is enabled)
 	if (_empty_tex == 0)
 	{
 		// Use VK_FORMAT_R16_SFLOAT format, since it is mandatory according to the spec (see https://www.khronos.org/registry/vulkan/specs/1.1/html/vkspec.html#features-required-format-support)
@@ -450,7 +450,7 @@ bool reshade::runtime::on_init()
 	_frame_count = 0;
 
 	_is_initialized = true;
-	_last_reload_time = std::chrono::high_resolution_clock::now(); // Intentionally set to current time, so that duration to last reload is valid even when there is no reload` init
+	_last_reload_time = std::chrono::high_resolution_clock::now(); // Intentionally set to current time, so that duration to last reload is valid even when there is no reload on init
 
 	_preset_save_successful = true;
 	_last_screenshot_save_successful = true;
@@ -3855,7 +3855,7 @@ void reshade::runtime::update_effects()
 			}
 
 			// Force immediate effect initialization of this permutation after reloading
-			// This can cause attempts to create an effect that failed to compile, so need to bb_handle that case in 'create_effect' below
+			// This can cause attempts to create an effect that failed to compile, so need to handle that case in 'create_effect' below
 			if (std::find(_reload_create_queue.cbegin(), _reload_create_queue.cend(), _reload_required_effects[i]) == _reload_create_queue.cend())
 				_reload_create_queue.push_back(_reload_required_effects[i]);
 		}
