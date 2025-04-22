@@ -67,9 +67,9 @@ bool reshade::openxr::swapchain_impl::on_init()
 
 	return true;
 }
-bool reshade::openxr::swapchain_impl::on_update_back_buffer()
+bool reshade::openxr::swapchain_impl::on_bind_back_buffer()
 {
-	effect_runtime_update_back_buffer(this);
+	effect_runtime_bind_back_buffer(this);
 	return true;
 }
 
@@ -207,7 +207,7 @@ void reshade::openxr::swapchain_impl::on_present_double_wide(api::resource *doub
 	}
 
 	_side_by_side_texture = *double_wide_view_texture;
-	if (!on_update_back_buffer())
+	if (!on_bind_back_buffer())
 		return;
 	
 	api::command_list *const cmd_list = _graphics_queue->get_immediate_command_list();

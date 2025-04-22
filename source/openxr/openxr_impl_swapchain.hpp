@@ -34,7 +34,7 @@ namespace reshade::openxr
 		api::subresource_box get_view_subresource_box(uint32_t index, uint32_t view_count) const;
 
 		bool on_init();
-		bool on_update_back_buffer();
+		bool on_bind_back_buffer();
 		void on_reset();
 
 		void on_present(uint32_t view_count, const api::resource *view_textures, const api::subresource_box *view_boxes, const uint32_t *view_layers);

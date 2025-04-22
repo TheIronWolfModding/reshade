@@ -517,7 +517,7 @@ struct bb_cache_item
 };
 
 std::vector<bb_cache_item> g_bb_cache;
-bool reshade::runtime::on_update_back_buffer()
+bool reshade::runtime::on_bind_back_buffer()
 {
 	const api::resource back_buffer_resource = get_back_buffer(0);
 	const uint64_t bb_handle = back_buffer_resource.handle;

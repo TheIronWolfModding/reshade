@@ -66,10 +66,10 @@ void reshade::init_effect_runtime(api::swapchain *swapchain)
 		runtime->on_init();
 }
 
-void reshade::effect_runtime_update_back_buffer(api::swapchain *swapchain)
+void reshade::effect_runtime_bind_back_buffer(api::swapchain *swapchain)
 {
 	if (const auto runtime = swapchain->get_private_data<reshade::runtime>())
-		runtime->on_update_back_buffer();
+		runtime->on_bind_back_buffer();
 }
 
 void reshade::reset_effect_runtime(api::swapchain *swapchain)

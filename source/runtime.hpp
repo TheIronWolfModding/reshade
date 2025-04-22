@@ -34,7 +34,7 @@ namespace reshade
 		~runtime();
 
 		bool on_init();
-		bool on_update_back_buffer();
+		bool on_bind_back_buffer();
 		void on_reset();
 		void on_present(api::command_queue *present_queue);
 
