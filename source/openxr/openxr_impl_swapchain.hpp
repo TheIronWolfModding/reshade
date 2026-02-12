@@ -36,6 +36,7 @@ namespace reshade::openxr
 		void on_reset();
 
 		void on_present(uint32_t view_count, const api::resource *view_textures, const api::subresource_box *view_boxes, const uint32_t *view_layers, const std::vector<api::resource> *swapchain_images, uint32_t swap_index);
+		void set_vr_use_separate_sxs_texture(bool config_value) final { _use_separate_sxs_texture = config_value; }
 
 	private:
 		api::device *const _device;
@@ -43,5 +44,6 @@ namespace reshade::openxr
 		api::resource _side_by_side_texture = {};
 		const std::vector<api::resource> *_swapchain_images = nullptr;
 		uint32_t _swap_index = 0;
+		bool _use_separate_sxs_texture = false;
 	};
 }

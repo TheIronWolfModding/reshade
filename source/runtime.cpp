@@ -905,6 +905,7 @@ void reshade::runtime::load_config()
 	config_get("GENERAL", "NoDebugInfo", _no_debug_info);
 	config_get("GENERAL", "NoEffectCache", _no_effect_cache);
 	config_get("GENERAL", "NoReloadOnInit", _no_reload_on_init);
+	config_get("GENERAL", "VRUseSeparateSxSTexture", _vr_use_sepate_sxs_texture);
 
 	config_get("GENERAL", "EffectSearchPaths", _effect_search_paths);
 	config_get("GENERAL", "PerformanceMode", _performance_mode);
@@ -982,6 +983,7 @@ void reshade::runtime::save_config() const
 	config.set("GENERAL", "NoDebugInfo", _no_debug_info);
 	config.set("GENERAL", "NoEffectCache", _no_effect_cache);
 	config.set("GENERAL", "NoReloadOnInit", _no_reload_on_init);
+	config.set("GENERAL", "VRUseSeparateSxSTexture", _vr_use_sepate_sxs_texture);
 
 	config.set("GENERAL", "EffectSearchPaths", _effect_search_paths);
 	config.set("GENERAL", "PerformanceMode", _performance_mode);

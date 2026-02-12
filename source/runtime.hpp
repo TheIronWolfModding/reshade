@@ -170,6 +170,8 @@ namespace reshade
 
 		void reload_effect_next_frame(const char *effect_name) final;
 
+		bool get_vr_use_separate_sxs_texture() const { return _vr_use_sepate_sxs_texture; }
+
 	private:
 		static void check_for_update();
 
@@ -283,6 +285,7 @@ namespace reshade
 		bool _no_reload_on_init = false;
 		bool _performance_mode = false;
 		bool _effect_load_skipping = false;
+		bool _vr_use_sepate_sxs_texture = false;
 		unsigned int _reload_key_data[4] = {};
 
 		std::vector<std::pair<std::string, std::string>> _global_preprocessor_definitions;

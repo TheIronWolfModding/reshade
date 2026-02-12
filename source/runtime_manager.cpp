@@ -45,6 +45,11 @@ void reshade::create_effect_runtime(api::swapchain *swapchain, api::command_queu
 		return;
 
 	swapchain->create_private_data<reshade::runtime>(swapchain, graphics_queue, config.path(), vr);
+
+	if (vr) {
+		const auto vusst = swapchain->get_private_data<reshade::runtime>()->get_vr_use_separate_sxs_texture();
+		swapchain->set_vr_use_separate_sxs_texture(vusst);
+	}
 }
 void reshade::destroy_effect_runtime(api::swapchain *swapchain)
 {

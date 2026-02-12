@@ -1330,5 +1330,7 @@ namespace reshade { namespace api
 		/// Gets the color space used for presentation.
 		/// </summary>
 		virtual color_space get_color_space() const = 0;
+
+		virtual void set_vr_use_separate_sxs_texture(bool /* config_value */) {};
 	};
 } }

@@ -120,8 +120,10 @@ void reshade::openxr::swapchain_impl::on_present(uint32_t view_count, const api:
 
 	api::command_list *const cmd_list = _graphics_queue->get_immediate_command_list();
 
-	// Check if input is alreay a usable side-by-side texture, in which case no copy is needed
-	if (swapchain_images != nullptr &&
+	// Check if input is alreay a usable side-by-side texture, in which case no copy is needed.
+	// GTR_SPECIFIC:
+	if (!_use_separate_sxs_texture &&
+		swapchain_images != nullptr &&
 		source_desc.texture.width == target_width &&
 		source_desc.texture.height == region_height &&
 		(source_desc.usage & (api::resource_usage::render_target | api::resource_usage::copy_source)) == (api::resource_usage::render_target | api::resource_usage::copy_source))
