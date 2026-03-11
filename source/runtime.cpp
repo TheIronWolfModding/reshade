@@ -1902,6 +1902,9 @@ bool reshade::runtime::load_effect(const std::filesystem::path &source_file, con
 				}
 				else
 				{
+					cso.clear();
+					assembly.clear();
+
 					if (!codegen->assemble_code_for_entry_point(entry_point.first, cso, assembly, errors))
 					{
 						compiled = false;
@@ -3171,6 +3174,7 @@ bool reshade::runtime::create_texture(texture &tex)
 		cmd_list->barrier(tex.resource, api::resource_usage::shader_resource, api::resource_usage::render_target);
 		cmd_list->clear_render_target_view(tex.rtv[0], clear_color);
 		cmd_list->barrier(tex.resource, api::resource_usage::render_target, api::resource_usage::shader_resource);
+
 		if (tex.levels > 1)
 			cmd_list->generate_mipmaps(tex.srv[0]);
 	}
@@ -4185,13 +4189,13 @@ void reshade::runtime::render_technique(technique &tech, api::command_list *cmd_
 			cmd_list->end_query(effect.query_heap, api::query_type::timestamp, query_base_index + static_cast<uint32_t>((1 + pass_index) * 2) + 1);
 #endif
 
-		// Generate mipmaps for modified resources
-		for (const api::resource_view modified_texture : pass.generate_mipmap_views)
-			cmd_list->generate_mipmaps(modified_texture);
-
 #ifndef NDEBUG
 		cmd_list->end_debug_event();
 #endif
+
+		// Generate mipmaps for modified resources
+		for (const api::resource_view modified_texture : pass.generate_mipmap_views)
+			cmd_list->generate_mipmaps(modified_texture);
 	}
 
 #if RESHADE_GUI
@@ -4420,8 +4424,7 @@ void reshade::runtime::update_texture(texture &tex, uint32_t width, uint32_t hei
 
 	api::command_list *const cmd_list = _graphics_queue->get_immediate_command_list();
 	cmd_list->barrier(tex.resource, api::resource_usage::shader_resource, api::resource_usage::copy_dest);
-	_graphics_queue->wait_idle();
-	_device->update_texture_region({ upload_data, tex.width * pixel_size, tex.width * tex.height * pixel_size }, tex.resource, 0);
+	cmd_list->update_texture_region({ upload_data, tex.width * pixel_size, tex.width * tex.height * pixel_size }, tex.resource, 0);
 	cmd_list->barrier(tex.resource, api::resource_usage::copy_dest, api::resource_usage::shader_resource);
 
 	if (tex.levels > 1)
